@@ -285,31 +285,49 @@ code{background:var(--card2);border-radius:4px;padding:1px 5px;
   <div id="tab-brother-eye" class="tab-content">
     <div class="ph">
       <div class="ph-title">Brother Eye</div>
-      <button class="icon-btn" onclick="openSnippetForm()">+</button>
-    </div>
-    <button class="open-claude-btn" onclick="openClaude()">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="2.5">
-        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-        <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
-      </svg>
-      Open Claude
-    </button>
-    <div class="info-card">
-      <div class="info-card-title">⬡ Remote Control</div>
-      <div class="info-step">
-        <div class="step-n">1</div>
-        <div class="step-t">Open a Claude Code session on your Mac</div>
-      </div>
-      <div class="info-step">
-        <div class="step-n">2</div>
-        <div class="step-t">Type <code>/rc</code> or <code>claude remote-control</code></div>
-      </div>
-      <div class="info-step">
-        <div class="step-n">3</div>
-        <div class="step-t">Scan the QR code from the Claude iPhone app</div>
+      <div class="ph-actions">
+        <button class="icon-btn" id="be-status-btn" onclick="beDisconnect()" title="Disconnect" style="display:none;background:rgba(48,209,88,.15);color:var(--ok)">●</button>
+        <button class="icon-btn" onclick="openSnippetForm()">+</button>
       </div>
     </div>
-    <div class="list-header">Snippets</div>
+
+    <!-- Connection panel -->
+    <div id="be-connect-panel">
+      <div class="info-card" style="text-align:center;padding:20px">
+        <div style="font-size:32px;margin-bottom:10px">◉</div>
+        <div style="font-weight:700;margin-bottom:6px">Connect to your Lenovo</div>
+        <div style="font-size:13px;color:var(--sub);margin-bottom:16px">Run <code>node server.js</code> in your Downloads\MiAsistente-PWA folder, then scan the QR code it shows.</div>
+        <button class="btn btn-gold" onclick="startQRScan()">Scan QR Code</button>
+      </div>
+    </div>
+
+    <!-- QR Scanner -->
+    <div id="be-scanner-panel" style="display:none">
+      <div style="position:relative;margin:0 14px 14px;border-radius:var(--r);overflow:hidden;background:#000;aspect-ratio:1">
+        <video id="be-video" autoplay playsinline style="width:100%;height:100%;object-fit:cover"></video>
+        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none">
+          <div style="width:60%;aspect-ratio:1;border:3px solid var(--gold);border-radius:12px;box-shadow:0 0 0 2000px rgba(0,0,0,0.5)"></div>
+        </div>
+      </div>
+      <div style="padding:0 14px 14px">
+        <button class="btn btn-dark" onclick="stopQRScan()">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Connected panel -->
+    <div id="be-chat-panel" style="display:none">
+      <div id="be-messages" style="padding:0 14px;display:flex;flex-direction:column;gap:8px;min-height:80px"></div>
+      <div style="padding:10px 14px 14px;display:flex;gap:8px">
+        <input type="text" id="be-input" class="oracle-input" style="border-radius:20px;padding:10px 14px"
+          placeholder="Send a command to Claude Code…"
+          onkeydown="if(event.key==='Enter')beSend()">
+        <button class="send-btn" onclick="beSend()">▲</button>
+      </div>
+    </div>
+
+    <div class="list-header" style="margin-top:4px">Snippets
+      <span style="color:var(--sub);font-weight:400;font-size:11px;margin-left:6px">tap ▲ to send</span>
+    </div>
     <div id="snippets-list"></div>
   </div>
 
@@ -781,6 +799,131 @@ function showFB(id,msg,type) {
 // ── UTILS ──
 function uid() { return crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2); }
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ── BROTHER EYE ──
+let beSocket = null;
+let beStream = null;
+let beScanInterval = null;
+
+async function startQRScan() {
+  document.getElementById('be-connect-panel').style.display = 'none';
+  document.getElementById('be-scanner-panel').style.display = 'block';
+  try {
+    beStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    const video = document.getElementById('be-video');
+    video.srcObject = beStream;
+    await video.play();
+    scanFrame(video);
+  } catch(e) {
+    alert('Camera access denied. Please allow camera in Safari settings.');
+    stopQRScan();
+  }
+}
+
+function scanFrame(video) {
+  if (!beStream) return;
+  const canvas = document.createElement('canvas');
+  canvas.width = video.videoWidth || 300;
+  canvas.height = video.videoHeight || 300;
+  const ctx = canvas.getContext('2d');
+  beScanInterval = setInterval(() => {
+    if (!beStream) return;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    try {
+      // Use BarcodeDetector if available (Safari 17+)
+      if ('BarcodeDetector' in window) {
+        new BarcodeDetector({ formats: ['qr_code'] })
+          .detect(canvas)
+          .then(codes => {
+            if (codes.length > 0) beConnect(codes[0].rawValue);
+          });
+      }
+    } catch(e) {}
+  }, 300);
+}
+
+function stopQRScan() {
+  clearInterval(beScanInterval);
+  if (beStream) { beStream.getTracks().forEach(t => t.stop()); beStream = null; }
+  document.getElementById('be-scanner-panel').style.display = 'none';
+  document.getElementById('be-connect-panel').style.display = 'block';
+}
+
+function beConnect(wsUrl) {
+  stopQRScan();
+  if (!wsUrl.startsWith('ws://')) { alert('Invalid QR code.'); return; }
+  beSocket = new WebSocket(wsUrl);
+  beSocket.onopen = () => {
+    document.getElementById('be-connect-panel').style.display = 'none';
+    document.getElementById('be-chat-panel').style.display = 'block';
+    document.getElementById('be-status-btn').style.display = 'flex';
+    beAppendMsg('system', '✓ Connected to your Lenovo');
+  };
+  beSocket.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    if (msg.type === 'status') beAppendMsg('system', msg.text);
+    else if (msg.type === 'thinking') beAppendMsg('system', '⟳ Claude Code is thinking…');
+    else if (msg.type === 'response') {
+      // Remove thinking message
+      const msgs = document.getElementById('be-messages');
+      const last = msgs.lastElementChild;
+      if (last && last.textContent.includes('thinking')) last.remove();
+      beAppendMsg('claude', msg.text);
+    }
+    else if (msg.type === 'error') beAppendMsg('system', '⚠ ' + msg.text);
+  };
+  beSocket.onclose = () => {
+    beAppendMsg('system', 'Disconnected from Lenovo.');
+    document.getElementById('be-status-btn').style.display = 'none';
+  };
+  beSocket.onerror = () => beAppendMsg('system', '⚠ Connection error.');
+}
+
+function beDisconnect() {
+  if (beSocket) beSocket.close();
+  beSocket = null;
+  document.getElementById('be-chat-panel').style.display = 'none';
+  document.getElementById('be-connect-panel').style.display = 'block';
+  document.getElementById('be-status-btn').style.display = 'none';
+}
+
+function beSend() {
+  const input = document.getElementById('be-input');
+  const text = input.value.trim();
+  if (!text || !beSocket || beSocket.readyState !== WebSocket.OPEN) return;
+  beAppendMsg('user', text);
+  beSocket.send(JSON.stringify({ type: 'prompt', text }));
+  input.value = '';
+}
+
+function beAppendMsg(role, text) {
+  const c = document.getElementById('be-messages');
+  const d = document.createElement('div');
+  if (role === 'user') {
+    d.className = 'msg user'; d.innerHTML = `<div class="bubble">${esc(text)}</div>`;
+  } else if (role === 'claude') {
+    d.className = 'msg assistant'; d.innerHTML = `<div class="bubble">${esc(text)}</div>`;
+  } else {
+    d.style.cssText = 'font-size:12px;color:var(--sub);text-align:center;padding:4px 0';
+    d.textContent = text;
+  }
+  c.appendChild(d); c.scrollTop = c.scrollHeight;
+}
+
+// Send snippet to Brother Eye or copy
+function runSnippet(id) {
+  const s = DB.sn.get().find(s => s.id === id); if (!s) return;
+  if (beSocket && beSocket.readyState === WebSocket.OPEN) {
+    beAppendMsg('user', s.command);
+    beSocket.send(JSON.stringify({ type: 'prompt', text: s.command }));
+    switchTab('brother-eye');
+  } else {
+    navigator.clipboard.writeText(s.command);
+    const btn = document.getElementById(`cb-${id}`);
+    if (btn) { btn.textContent = '✓'; btn.classList.add('copied'); setTimeout(() => { btn.textContent = '⎘'; btn.classList.remove('copied'); }, 1500); }
+  }
+}
 
 // ── ORACLE CHAT ──
 let chatHistory = [];
