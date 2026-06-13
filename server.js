@@ -20,11 +20,13 @@ function getLocalIP() {
 
 const IP = getLocalIP();
 const WS_URL = `ws://${IP}:${PORT}?token=${TOKEN}`;
+const KNIGHTFALL = 'https://aimaxsms.github.io/Knightfall';
+const QR_URL = `${KNIGHTFALL}?behost=${IP}&beport=${PORT}&betoken=${TOKEN}`;
 
 const wss = new WebSocket.Server({ port: PORT });
 
 // Generate QR as HTML and open in browser
-QRCode.toDataURL(WS_URL, { width: 300, margin: 2 }, (err, dataUrl) => {
+QRCode.toDataURL(QR_URL, { width: 300, margin: 2 }, (err, dataUrl) => {
   const html = `<!DOCTYPE html>
 <html>
 <head>
@@ -35,15 +37,15 @@ QRCode.toDataURL(WS_URL, { width: 300, margin: 2 }, (err, dataUrl) => {
   h1{color:#F2C412;font-size:22px;margin-bottom:4px}
   p{color:#888;font-size:14px;margin-bottom:20px}
   img{border-radius:12px;border:4px solid #F2C412}
-  code{background:#1e1e1e;border-radius:6px;padding:8px 14px;font-size:13px;color:#F2C412;display:block;margin-top:16px;word-break:break-all;max-width:340px}
+  .note{margin-top:16px;font-size:13px;color:#888;max-width:320px;line-height:1.5}
   .status{margin-top:14px;color:#30D158;font-size:13px}
 </style>
 </head>
 <body>
   <h1>◉ Brother Eye</h1>
-  <p>Scan this QR from Brother Eye on your iPhone<br>(both devices must be on the same WiFi)</p>
+  <p>Scan with your iPhone Camera app<br>(both devices must be on the same WiFi)</p>
   <img src="${dataUrl}" width="260" height="260">
-  <code>${WS_URL}</code>
+  <div class="note">Point your iPhone camera at this QR — it will open Knightfall and connect automatically.</div>
   <div class="status">Server running — waiting for connection…</div>
 </body>
 </html>`;
