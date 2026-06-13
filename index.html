@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Knightfall">
+<meta name="theme-color" content="#080808">
+<title>Knightfall</title>
+<link rel="manifest" href="manifest.json">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --gold:#F2C412;
+  --gold-dim:rgba(242,196,18,0.14);
+  --bg:#080808;
+  --card:#141414;
+  --card2:#1e1e1e;
+  --text:#f0f0f0;
+  --sub:#999;
+  --sep:#242424;
+  --danger:#FF453A;
+  --ok:#30D158;
+  --font:-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif;
+  --r:12px;
+  --tab-h:49px;
+}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
+#app{height:100%;display:flex;flex-direction:column;position:relative;overflow:hidden}
+
+/* TAB CONTENT */
+.tab-content{display:none;flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  padding-top:max(env(safe-area-inset-top),16px);
+  padding-bottom:calc(var(--tab-h) + env(safe-area-inset-bottom) + 20px)}
+.tab-content.active{display:flex;flex-direction:column}
+
+/* TAB BAR */
+.tab-bar{
+  position:fixed;bottom:0;left:0;right:0;
+  height:calc(var(--tab-h) + env(safe-area-inset-bottom));
+  padding-bottom:env(safe-area-inset-bottom);
+  background:rgba(10,10,10,0.92);
+  backdrop-filter:saturate(160%) blur(20px);
+  -webkit-backdrop-filter:saturate(160%) blur(20px);
+  border-top:0.5px solid var(--sep);
+  display:flex;align-items:flex-start;z-index:100}
+.tab-btn{
+  flex:1;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;padding:8px 0 0;gap:3px;
+  border:none;background:none;color:var(--sub);
+  font-family:var(--font);font-size:10px;cursor:pointer;
+  min-height:var(--tab-h);transition:color .15s}
+.tab-btn.active{color:var(--gold)}
+.tab-btn svg{width:22px;height:22px;stroke-width:1.8;fill:none;stroke:currentColor}
+
+/* PAGE HEADER */
+.ph{display:flex;align-items:center;justify-content:space-between;padding:4px 16px 10px}
+.ph-title{font-size:26px;font-weight:700;letter-spacing:-0.5px}
+.ph-actions{display:flex;gap:8px}
+.icon-btn{
+  width:36px;height:36px;border-radius:50%;
+  background:var(--card2);border:none;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;color:var(--gold);font-size:18px;
+  transition:background .15s}
+.icon-btn:active{background:#2a2a2a}
+
+/* MONTH NAV */
+.month-nav{display:flex;align-items:center;padding:0 6px 6px}
+.month-label{flex:1;text-align:center;font-size:17px;font-weight:600}
+.nav-btn{width:36px;height:36px;border:none;background:none;color:var(--gold);
+  font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  border-radius:50%;transition:background .1s}
+.nav-btn:active{background:var(--gold-dim)}
+
+/* CALENDAR GRID */
+.wd-row{display:grid;grid-template-columns:repeat(7,1fr);padding:0 4px}
+.wd-label{text-align:center;font-size:11px;font-weight:600;color:var(--sub);padding:4px 0}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);padding:0 4px;touch-action:pan-y}
+.day-cell{
+  display:flex;flex-direction:column;align-items:center;
+  justify-content:center;min-height:48px;gap:4px;cursor:pointer}
+.day-num{
+  width:32px;height:32px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:14px;transition:background .12s,color .12s}
+.day-cell.today .day-num{color:var(--gold);font-weight:700}
+.day-cell.sel .day-num{background:var(--gold);color:#111;font-weight:700}
+.day-cell.today.sel .day-num{background:var(--gold);color:#111}
+.day-dot{width:5px;height:5px;border-radius:50%;background:var(--gold)}
+.day-cell.sel .day-dot{background:#111}
+
+/* EVENT LIST */
+.list-header{padding:14px 16px 6px;font-size:13px;font-weight:600;color:var(--sub);text-transform:uppercase;letter-spacing:.4px}
+.event-card{
+  margin:0 14px 8px;background:var(--card);border-radius:var(--r);
+  padding:12px 14px;display:flex;gap:12px;align-items:flex-start;cursor:pointer;
+  border:0.5px solid var(--sep)}
+.event-card:active{background:var(--card2)}
+.event-bar{width:3px;min-height:36px;background:var(--gold);border-radius:2px;flex-shrink:0}
+.event-body{flex:1;min-width:0}
+.event-title{font-size:15px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.event-time{font-size:12px;color:var(--sub);margin-top:2px}
+.event-loc{font-size:12px;color:var(--sub);margin-top:2px}
+.empty{text-align:center;color:var(--sub);padding:28px 16px;font-size:15px}
+
+/* BROTHER EYE */
+.open-claude-btn{
+  margin:0 14px 14px;background:var(--gold);color:#111;
+  border:none;border-radius:var(--r);padding:15px;
+  font-size:17px;font-weight:700;font-family:var(--font);
+  width:calc(100% - 28px);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:8px}
+.open-claude-btn:active{opacity:.85}
+
+.info-card{margin:0 14px 14px;background:var(--card);border-radius:var(--r);
+  padding:14px 16px;border:0.5px solid var(--sep)}
+.info-card-title{font-size:11px;font-weight:700;color:var(--gold);
+  text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px}
+.info-step{display:flex;gap:10px;align-items:flex-start;margin-bottom:10px}
+.info-step:last-child{margin-bottom:0}
+.step-n{background:var(--gold);color:#111;border-radius:50%;
+  width:20px;height:20px;display:flex;align-items:center;justify-content:center;
+  font-size:11px;font-weight:800;flex-shrink:0;margin-top:1px}
+.step-t{font-size:14px;line-height:1.45;color:var(--text)}
+code{background:var(--card2);border-radius:4px;padding:1px 5px;
+  font-size:13px;font-family:'SF Mono','Menlo',monospace;color:var(--gold)}
+
+.snippet-card{
+  margin:0 14px 8px;background:var(--card);border-radius:var(--r);
+  padding:12px 14px;display:flex;align-items:center;gap:10px;
+  border:0.5px solid var(--sep)}
+.snippet-info{flex:1;min-width:0}
+.snippet-title{font-size:15px;font-weight:500}
+.snippet-cmd{font-size:12px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.copy-btn{
+  width:34px;height:34px;border:none;background:var(--gold-dim);
+  border-radius:8px;cursor:pointer;color:var(--gold);font-size:16px;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  transition:all .2s}
+.copy-btn.copied{background:rgba(48,209,88,.15);color:var(--ok)}
+.del-btn{
+  width:28px;height:28px;border:none;background:none;
+  cursor:pointer;color:var(--sub);font-size:14px;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.del-btn:active{color:var(--danger)}
+
+/* SETTINGS */
+.s-section-label{padding:16px 16px 6px;font-size:11px;font-weight:700;
+  color:var(--sub);text-transform:uppercase;letter-spacing:.4px}
+.s-group{margin:0 14px 12px;background:var(--card);border-radius:var(--r);
+  overflow:hidden;border:0.5px solid var(--sep)}
+.s-row{padding:13px 16px;border-bottom:0.5px solid var(--sep);
+  display:flex;align-items:center;gap:10px}
+.s-row:last-child{border-bottom:none}
+.s-label{font-size:15px;color:var(--sub);min-width:70px}
+.s-val{font-size:14px;color:var(--sub)}
+.s-input{flex:1;border:none;background:none;font-family:var(--font);
+  font-size:15px;color:var(--text);outline:none;min-width:0}
+
+/* BUTTONS */
+.btn{border:none;border-radius:var(--r);padding:14px 18px;
+  font-size:16px;font-family:var(--font);cursor:pointer;font-weight:600;
+  transition:opacity .15s;width:100%;text-align:center;display:block}
+.btn:active{opacity:.75}
+.btn:disabled{opacity:.35}
+.btn-gold{background:var(--gold);color:#111}
+.btn-dark{background:var(--card2);color:var(--text)}
+.btn-danger{background:rgba(255,69,58,.12);color:var(--danger)}
+.btns{display:flex;gap:10px;margin-top:18px}
+.btns .btn{flex:1}
+.solo-btns{display:flex;flex-direction:column;gap:10px;padding:0 14px}
+
+/* OVERLAY */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);
+  opacity:0;pointer-events:none;transition:opacity .25s;z-index:200}
+.overlay.vis{opacity:1;pointer-events:all}
+
+/* MODAL */
+.modal{
+  position:fixed;bottom:0;left:0;right:0;
+  background:var(--card);border-radius:20px 20px 0 0;
+  transform:translateY(100%);
+  transition:transform .32s cubic-bezier(.25,.46,.45,.94);
+  z-index:300;max-height:92vh;overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  padding-bottom:env(safe-area-inset-bottom)}
+.modal.open{transform:translateY(0)}
+.modal-handle{width:36px;height:4px;background:var(--sep);border-radius:2px;margin:10px auto 0}
+.modal-hdr{display:flex;align-items:center;justify-content:space-between;padding:16px 18px 8px}
+.modal-title{font-size:18px;font-weight:700}
+.modal-close{width:28px;height:28px;border-radius:50%;background:var(--card2);
+  border:none;font-size:15px;cursor:pointer;color:var(--sub);
+  display:flex;align-items:center;justify-content:center}
+.modal-body{padding:6px 18px 20px}
+
+/* FORM FIELDS */
+.field{margin-bottom:14px}
+.field label{display:block;font-size:11px;font-weight:700;color:var(--sub);
+  margin-bottom:5px;text-transform:uppercase;letter-spacing:.4px}
+.field input,.field textarea{
+  width:100%;background:var(--card2);border:none;border-radius:10px;
+  padding:12px 13px;font-family:var(--font);font-size:16px;
+  color:var(--text);outline:none;-webkit-appearance:none;
+  border:0.5px solid var(--sep)}
+.field textarea{min-height:72px;resize:none}
+.field input[type=datetime-local]{font-size:14px;color-scheme:dark}
+
+/* AI BADGE */
+.ai-badge{display:flex;align-items:center;gap:6px;
+  background:rgba(242,196,18,.1);border-radius:8px;
+  padding:8px 12px;margin-bottom:14px;
+  font-size:13px;color:var(--gold);font-weight:600}
+
+/* STATUS */
+.err-msg{background:rgba(255,69,58,.12);border-radius:8px;
+  padding:11px 13px;font-size:14px;color:var(--danger);margin-bottom:12px}
+.ok-msg{background:rgba(48,209,88,.12);border-radius:8px;
+  padding:11px 13px;font-size:14px;color:var(--ok);margin-bottom:12px}
+.spin{display:inline-block;width:16px;height:16px;
+  border:2px solid rgba(0,0,0,.3);border-top-color:#111;
+  border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:6px}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ══ ALFRED TAB ══ -->
+  <div id="tab-alfred" class="tab-content active">
+    <div class="ph">
+      <div class="ph-title">Alfred</div>
+      <div class="ph-actions">
+        <button class="icon-btn" onclick="openAIInput()" title="AI event">✦</button>
+        <button class="icon-btn" onclick="openNewEvent()" title="New event">+</button>
+      </div>
+    </div>
+    <div class="month-nav">
+      <button class="nav-btn" onclick="navMonth(-1)">‹</button>
+      <div class="month-label" id="month-label"></div>
+      <button class="nav-btn" onclick="navMonth(1)">›</button>
+    </div>
+    <div class="wd-row" id="wd-row"></div>
+    <div class="cal-grid" id="cal-grid"></div>
+    <div id="event-list"></div>
+  </div>
+
+  <!-- ══ BROTHER EYE TAB ══ -->
+  <div id="tab-brother-eye" class="tab-content">
+    <div class="ph">
+      <div class="ph-title">Brother Eye</div>
+      <button class="icon-btn" onclick="openSnippetForm()">+</button>
+    </div>
+    <button class="open-claude-btn" onclick="openClaude()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="2.5">
+        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+        <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+      </svg>
+      Open Claude
+    </button>
+    <div class="info-card">
+      <div class="info-card-title">⬡ Remote Control</div>
+      <div class="info-step">
+        <div class="step-n">1</div>
+        <div class="step-t">Open a Claude Code session on your Mac</div>
+      </div>
+      <div class="info-step">
+        <div class="step-n">2</div>
+        <div class="step-t">Type <code>/rc</code> or <code>claude remote-control</code></div>
+      </div>
+      <div class="info-step">
+        <div class="step-n">3</div>
+        <div class="step-t">Scan the QR code from the Claude iPhone app</div>
+      </div>
+    </div>
+    <div class="list-header">Snippets</div>
+    <div id="snippets-list"></div>
+  </div>
+
+  <!-- ══ SETTINGS TAB ══ -->
+  <div id="tab-settings" class="tab-content">
+    <div class="ph">
+      <div class="ph-title">Settings</div>
+    </div>
+    <div class="s-section-label">Anthropic API</div>
+    <div class="s-group">
+      <div class="s-row">
+        <span class="s-label">API Key</span>
+        <input class="s-input" type="password" id="s-apikey"
+          placeholder="sk-ant-..." autocomplete="off" autocorrect="off" spellcheck="false">
+      </div>
+    </div>
+    <div class="solo-btns">
+      <button class="btn btn-gold" onclick="saveApiKey()">Save Key</button>
+      <button class="btn btn-danger" onclick="deleteApiKey()">Remove Key</button>
+    </div>
+    <div id="settings-fb" style="padding:8px 14px 0"></div>
+    <div class="s-section-label" style="margin-top:16px">About</div>
+    <div class="s-group">
+      <div class="s-row"><span class="s-label">App</span><span class="s-val">Knightfall 1.0</span></div>
+      <div class="s-row"><span class="s-label">Alfred</span><span class="s-val">AI Calendar</span></div>
+      <div class="s-row"><span class="s-label">Brother Eye</span><span class="s-val">Claude Code Hub</span></div>
+      <div class="s-row"><span class="s-label">Model</span><span class="s-val">claude-haiku-4-5</span></div>
+      <div class="s-row"><span class="s-label">Storage</span><span class="s-val">localStorage</span></div>
+    </div>
+  </div>
+
+  <!-- ══ TAB BAR ══ -->
+  <nav class="tab-bar">
+    <button class="tab-btn active" data-tab="alfred" onclick="switchTab('alfred')">
+      <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/>
+        <line x1="3" y1="9" x2="21" y2="9"/>
+        <line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg>
+      Alfred
+    </button>
+    <button class="tab-btn" data-tab="brother-eye" onclick="switchTab('brother-eye')">
+      <svg viewBox="0 0 24 24">
+        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+        <circle cx="12" cy="12" r="3"/></svg>
+      Brother Eye
+    </button>
+    <button class="tab-btn" data-tab="settings" onclick="switchTab('settings')">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      Settings
+    </button>
+  </nav>
+
+  <!-- ══ OVERLAY ══ -->
+  <div class="overlay" id="overlay" onclick="closeAll()"></div>
+
+  <!-- ══ MODAL: AI INPUT ══ -->
+  <div class="modal" id="modal-ai">
+    <div class="modal-handle"></div>
+    <div class="modal-hdr">
+      <div class="modal-title">✦ Ask Alfred</div>
+      <button class="modal-close" onclick="closeModal('modal-ai')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Describe the event</label>
+        <textarea id="ai-text" placeholder="e.g. dentist next Tuesday 9am, or dinner with mom Friday at 7pm" rows="3"></textarea>
+      </div>
+      <div id="ai-error"></div>
+      <button class="btn btn-gold" id="ai-submit-btn" onclick="runAIParse()">✦ Parse with Claude</button>
+    </div>
+  </div>
+
+  <!-- ══ MODAL: AI CONFIRMATION ══ -->
+  <div class="modal" id="modal-confirm">
+    <div class="modal-handle"></div>
+    <div class="modal-hdr">
+      <div class="modal-title">Confirm Event</div>
+      <button class="modal-close" onclick="closeModal('modal-confirm')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="ai-badge">✦ Detected by Claude — review before saving</div>
+      <div class="field"><label>Title</label>
+        <input type="text" id="conf-title" placeholder="Event title"></div>
+      <div class="field"><label>Start</label>
+        <input type="datetime-local" id="conf-start"></div>
+      <div class="field"><label>End</label>
+        <input type="datetime-local" id="conf-end"></div>
+      <div class="field"><label>Location (optional)</label>
+        <input type="text" id="conf-location" placeholder="Location"></div>
+      <div class="field"><label>Notes (optional)</label>
+        <textarea id="conf-notes" placeholder="Notes..."></textarea></div>
+      <div class="btns">
+        <button class="btn btn-dark" onclick="closeModal('modal-confirm')">Discard</button>
+        <button class="btn btn-gold" onclick="saveConfirmedEvent()">Save Event</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ MODAL: EVENT FORM ══ -->
+  <div class="modal" id="modal-event">
+    <div class="modal-handle"></div>
+    <div class="modal-hdr">
+      <div class="modal-title" id="ef-modal-title">New Event</div>
+      <button class="modal-close" onclick="closeModal('modal-event')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field"><label>Title</label>
+        <input type="text" id="ef-title" placeholder="Event title"></div>
+      <div class="field"><label>Start</label>
+        <input type="datetime-local" id="ef-start"></div>
+      <div class="field"><label>End</label>
+        <input type="datetime-local" id="ef-end"></div>
+      <div class="field"><label>Location (optional)</label>
+        <input type="text" id="ef-location" placeholder="Location"></div>
+      <div class="field"><label>Notes (optional)</label>
+        <textarea id="ef-notes" placeholder="Notes..."></textarea></div>
+      <div class="btns">
+        <button class="btn btn-dark" onclick="closeModal('modal-event')">Cancel</button>
+        <button class="btn btn-gold" onclick="saveEvent()">Save</button>
+      </div>
+      <div id="ef-delete" style="display:none;margin-top:10px">
+        <button class="btn btn-danger" onclick="deleteCurrentEvent()">Delete Event</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ MODAL: SNIPPET FORM ══ -->
+  <div class="modal" id="modal-snippet">
+    <div class="modal-handle"></div>
+    <div class="modal-hdr">
+      <div class="modal-title">New Snippet</div>
+      <button class="modal-close" onclick="closeModal('modal-snippet')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field"><label>Name</label>
+        <input type="text" id="sn-title" placeholder="e.g. Run tests"></div>
+      <div class="field"><label>Command / Prompt</label>
+        <textarea id="sn-command" placeholder="e.g. run the tests and fix all failures" rows="4"></textarea></div>
+      <div class="btns">
+        <button class="btn btn-dark" onclick="closeModal('modal-snippet')">Cancel</button>
+        <button class="btn btn-gold" onclick="saveSnippet()">Add</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+<script>
+// ── STORAGE ──
+const DB = {
+  ev:  { get: () => JSON.parse(localStorage.getItem('kf_ev')  || '[]'), set: v => localStorage.setItem('kf_ev',  JSON.stringify(v)) },
+  sn:  { get: () => JSON.parse(localStorage.getItem('kf_sn')  || '[]'), set: v => localStorage.setItem('kf_sn',  JSON.stringify(v)) },
+  key: { get: () => localStorage.getItem('kf_key') || '',               set: v => localStorage.setItem('kf_key', v), clear: () => localStorage.removeItem('kf_key') },
+};
+
+// ── STATE ──
+const S = {
+  month: startOfMonth(new Date()),
+  sel:   startOfDay(new Date()),
+};
+
+// ── DATE HELPERS ──
+function startOfDay(d) { const r = new Date(d); r.setHours(0,0,0,0); return r; }
+function startOfMonth(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
+function sameDay(a, b) {
+  return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
+}
+function toDTL(d) {
+  const x = new Date(d), p = n => String(n).padStart(2,'0');
+  return `${x.getFullYear()}-${p(x.getMonth()+1)}-${p(x.getDate())}T${p(x.getHours())}:${p(x.getMinutes())}`;
+}
+function fmtTime(d) { return new Date(d).toLocaleTimeString('en',{hour:'numeric',minute:'2-digit',hour12:true}); }
+function fmtDay(d)  { return new Date(d).toLocaleDateString('en',{weekday:'long',month:'long',day:'numeric'}); }
+
+// ── CALENDAR RENDER ──
+const MO = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const WD = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+function renderCalendar() {
+  const y = S.month.getFullYear(), m = S.month.getMonth();
+  const t = startOfDay(new Date());
+  const events = DB.ev.get();
+
+  document.getElementById('month-label').textContent = `${MO[m]} ${y}`;
+  document.getElementById('wd-row').innerHTML = WD.map(d=>`<div class="wd-label">${d}</div>`).join('');
+
+  const offset = new Date(y,m,1).getDay();
+  const days   = new Date(y,m+1,0).getDate();
+  let html = '<div></div>'.repeat(offset);
+  for (let d=1; d<=days; d++) {
+    const date = new Date(y,m,d);
+    const isT  = sameDay(date,t);
+    const isS  = sameDay(date,S.sel);
+    const hasE = events.some(e => sameDay(new Date(e.startDate), date));
+    html += `<div class="day-cell${isT?' today':''}${isS?' sel':''}" onclick="pickDay(new Date(${y},${m},${d}))">
+      <span class="day-num">${d}</span>${hasE?'<span class="day-dot"></span>':''}
+    </div>`;
+  }
+  document.getElementById('cal-grid').innerHTML = html;
+  renderEvents();
+}
+
+function renderEvents() {
+  const evs = DB.ev.get()
+    .filter(e => sameDay(new Date(e.startDate), S.sel))
+    .sort((a,b) => new Date(a.startDate)-new Date(b.startDate));
+
+  const hdr = `<div class="list-header">${fmtDay(S.sel)}</div>`;
+  document.getElementById('event-list').innerHTML = evs.length
+    ? hdr + evs.map(e=>`
+        <div class="event-card" onclick="openEditEv('${e.id}')">
+          <div class="event-bar"></div>
+          <div class="event-body">
+            <div class="event-title">${esc(e.title)}</div>
+            <div class="event-time">${fmtTime(e.startDate)} – ${fmtTime(e.endDate)}</div>
+            ${e.location?`<div class="event-loc">📍 ${esc(e.location)}</div>`:''}
+          </div>
+        </div>`).join('')
+    : hdr + '<div class="empty">No events today</div>';
+}
+
+function renderSnippets() {
+  const snips = DB.sn.get();
+  document.getElementById('snippets-list').innerHTML = snips.length
+    ? snips.map(s=>`
+        <div class="snippet-card">
+          <div class="snippet-info">
+            <div class="snippet-title">${esc(s.title)}</div>
+            <div class="snippet-cmd">${esc(s.command)}</div>
+          </div>
+          <button class="copy-btn" id="cb-${s.id}" onclick="copySnippet('${s.id}')">⎘</button>
+          <button class="del-btn" onclick="delSnippet('${s.id}')">✕</button>
+        </div>`).join('')
+    : '<div class="empty">No snippets yet — tap + to add one</div>';
+}
+
+// ── NAVIGATION ──
+function navMonth(dir) {
+  S.month = new Date(S.month.getFullYear(), S.month.getMonth()+dir, 1);
+  renderCalendar();
+}
+function pickDay(d) { S.sel = d; renderCalendar(); }
+
+// ── TABS ──
+function switchTab(tab) {
+  document.querySelectorAll('.tab-content').forEach(el =>
+    el.classList.toggle('active', el.id === `tab-${tab}`));
+  document.querySelectorAll('.tab-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.tab === tab));
+  if (tab==='brother-eye') renderSnippets();
+  if (tab==='settings') document.getElementById('s-apikey').value = DB.key.get();
+}
+
+// ── MODALS ──
+function openModal(id)  { document.getElementById(id).classList.add('open'); document.getElementById('overlay').classList.add('vis'); }
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+  if (!document.querySelector('.modal.open')) document.getElementById('overlay').classList.remove('vis');
+}
+function closeAll() {
+  document.querySelectorAll('.modal').forEach(m=>m.classList.remove('open'));
+  document.getElementById('overlay').classList.remove('vis');
+}
+
+// ── AI INPUT ──
+function openAIInput() {
+  document.getElementById('ai-text').value='';
+  document.getElementById('ai-error').innerHTML='';
+  const btn=document.getElementById('ai-submit-btn');
+  btn.disabled=false; btn.innerHTML='✦ Parse with Claude';
+  openModal('modal-ai');
+  setTimeout(()=>document.getElementById('ai-text').focus(),350);
+}
+
+async function runAIParse() {
+  const text = document.getElementById('ai-text').value.trim();
+  if (!text) return;
+  const key = DB.key.get().trim();
+  if (!key) {
+    document.getElementById('ai-error').innerHTML='<div class="err-msg">No API key set. Go to Settings first.</div>';
+    return;
+  }
+  const btn=document.getElementById('ai-submit-btn');
+  btn.disabled=true; btn.innerHTML='<span class="spin"></span>Analyzing...';
+  document.getElementById('ai-error').innerHTML='';
+  try {
+    const parsed = await callClaude(text,key);
+    closeModal('modal-ai');
+    document.getElementById('conf-title').value    = parsed.title;
+    document.getElementById('conf-start').value    = toDTL(parsed.start);
+    document.getElementById('conf-end').value      = toDTL(parsed.end);
+    document.getElementById('conf-location').value = parsed.location||'';
+    document.getElementById('conf-notes').value    = parsed.notes||'';
+    openModal('modal-confirm');
+  } catch(e) {
+    document.getElementById('ai-error').innerHTML=`<div class="err-msg">${esc(e.message)}</div>`;
+  } finally {
+    btn.disabled=false; btn.innerHTML='✦ Parse with Claude';
+  }
+}
+
+async function callClaude(text,key) {
+  const tz=Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const res = await fetch('https://api.anthropic.com/v1/messages',{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      'x-api-key':key,
+      'anthropic-version':'2023-06-01',
+      'anthropic-dangerous-direct-browser-access':'true',
+    },
+    body:JSON.stringify({
+      model:'claude-haiku-4-5-20251001',
+      max_tokens:256,
+      system:`You are a calendar event parser. Extract event details from natural language.
+Current date/time: ${new Date().toISOString()}
+Timezone: ${tz}
+Reply with ONLY valid JSON — no markdown, no code fences:
+{"title":"string","startDate":"ISO8601 with offset","endDate":"ISO8601 with offset","location":null,"notes":null}
+Default duration 1 hour if unspecified. Include timezone offset in dates.`,
+      messages:[{role:'user',content:text}],
+    }),
+  });
+  if (!res.ok) {
+    let msg=`Server error ${res.status}`;
+    try{const j=await res.json();msg=j.error?.message||msg;}catch{}
+    throw new Error(msg);
+  }
+  const data=await res.json();
+  let raw=(data.content?.[0]?.text||'').trim()
+    .replace(/^```[a-z]*\n?/i,'').replace(/\n?```$/,'').trim();
+  let obj;
+  try{obj=JSON.parse(raw);}
+  catch{throw new Error("Couldn't parse Claude's response. Try again.");}
+  const start=new Date(obj.startDate), end=new Date(obj.endDate);
+  if(isNaN(start))throw new Error(`Invalid start date: ${obj.startDate}`);
+  if(isNaN(end))throw new Error(`Invalid end date: ${obj.endDate}`);
+  return {title:obj.title,start,end,location:obj.location||null,notes:obj.notes||null};
+}
+
+function saveConfirmedEvent() {
+  const title=document.getElementById('conf-title').value.trim();
+  if(!title)return;
+  const ev={id:uid(),title,
+    startDate:new Date(document.getElementById('conf-start').value).toISOString(),
+    endDate:  new Date(document.getElementById('conf-end').value).toISOString(),
+    location: document.getElementById('conf-location').value.trim()||null,
+    notes:    document.getElementById('conf-notes').value.trim()||null,
+    createdAt:new Date().toISOString()};
+  const evs=DB.ev.get(); evs.push(ev); DB.ev.set(evs);
+  const d=new Date(ev.startDate);
+  S.sel=new Date(d.getFullYear(),d.getMonth(),d.getDate());
+  S.month=new Date(d.getFullYear(),d.getMonth(),1);
+  closeModal('modal-confirm');
+  renderCalendar();
+}
+
+// ── EVENT FORM ──
+let _eid=null;
+function openNewEvent() {
+  _eid=null;
+  document.getElementById('ef-modal-title').textContent='New Event';
+  document.getElementById('ef-title').value='';
+  document.getElementById('ef-location').value='';
+  document.getElementById('ef-notes').value='';
+  document.getElementById('ef-delete').style.display='none';
+  const s=new Date(S.sel); s.setHours(9,0,0,0);
+  const e=new Date(s); e.setHours(10,0,0,0);
+  document.getElementById('ef-start').value=toDTL(s);
+  document.getElementById('ef-end').value=toDTL(e);
+  openModal('modal-event');
+}
+function openEditEv(id) {
+  const ev=DB.ev.get().find(e=>e.id===id); if(!ev)return;
+  _eid=id;
+  document.getElementById('ef-modal-title').textContent='Edit Event';
+  document.getElementById('ef-title').value=ev.title;
+  document.getElementById('ef-start').value=toDTL(new Date(ev.startDate));
+  document.getElementById('ef-end').value=toDTL(new Date(ev.endDate));
+  document.getElementById('ef-location').value=ev.location||'';
+  document.getElementById('ef-notes').value=ev.notes||'';
+  document.getElementById('ef-delete').style.display='block';
+  openModal('modal-event');
+}
+function saveEvent() {
+  const title=document.getElementById('ef-title').value.trim(); if(!title)return;
+  const ev={id:_eid||uid(),title,
+    startDate:new Date(document.getElementById('ef-start').value).toISOString(),
+    endDate:  new Date(document.getElementById('ef-end').value).toISOString(),
+    location: document.getElementById('ef-location').value.trim()||null,
+    notes:    document.getElementById('ef-notes').value.trim()||null,
+    createdAt:new Date().toISOString()};
+  let evs=DB.ev.get();
+  DB.ev.set(_eid ? evs.map(e=>e.id===_eid?ev:e) : [...evs,ev]);
+  closeModal('modal-event'); renderCalendar();
+}
+function deleteCurrentEvent() {
+  if(!_eid)return;
+  DB.ev.set(DB.ev.get().filter(e=>e.id!==_eid));
+  closeModal('modal-event'); renderCalendar();
+}
+
+// ── SNIPPETS ──
+function openSnippetForm() {
+  document.getElementById('sn-title').value='';
+  document.getElementById('sn-command').value='';
+  openModal('modal-snippet');
+}
+function saveSnippet() {
+  const t=document.getElementById('sn-title').value.trim();
+  const c=document.getElementById('sn-command').value.trim();
+  if(!t||!c)return;
+  const snips=DB.sn.get();
+  snips.push({id:uid(),title:t,command:c,createdAt:new Date().toISOString()});
+  DB.sn.set(snips); closeModal('modal-snippet'); renderSnippets();
+}
+function delSnippet(id) { DB.sn.set(DB.sn.get().filter(s=>s.id!==id)); renderSnippets(); }
+function copySnippet(id) {
+  const s=DB.sn.get().find(s=>s.id===id); if(!s)return;
+  navigator.clipboard.writeText(s.command).then(()=>{
+    const btn=document.getElementById(`cb-${id}`);
+    btn.textContent='✓'; btn.classList.add('copied');
+    setTimeout(()=>{btn.textContent='⎘';btn.classList.remove('copied');},1500);
+  });
+}
+
+// ── CLAUDE ──
+function openClaude() { window.open('https://claude.ai','_blank'); }
+
+// ── SETTINGS ──
+function saveApiKey() {
+  DB.key.set(document.getElementById('s-apikey').value.trim());
+  showFB('settings-fb','API key saved.','ok');
+}
+function deleteApiKey() {
+  DB.key.clear(); document.getElementById('s-apikey').value='';
+  showFB('settings-fb','API key removed.','ok');
+}
+function showFB(id,msg,type) {
+  const el=document.getElementById(id);
+  el.innerHTML=`<div class="${type==='ok'?'ok-msg':'err-msg'}">${esc(msg)}</div>`;
+  setTimeout(()=>el.innerHTML='',3000);
+}
+
+// ── UTILS ──
+function uid() { return crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2); }
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ── SWIPE MONTH ──
+let _tx=0;
+document.getElementById('cal-grid').addEventListener('touchstart',e=>{_tx=e.touches[0].clientX;},{passive:true});
+document.getElementById('cal-grid').addEventListener('touchend',e=>{
+  const dx=e.changedTouches[0].clientX-_tx;
+  if(Math.abs(dx)>50)navMonth(dx<0?1:-1);
+},{passive:true});
+
+// ── SERVICE WORKER ──
+if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+
+// ── INIT ──
+renderCalendar();
+</script>
+</body>
+</html>

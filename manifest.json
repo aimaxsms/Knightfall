@@ -1,0 +1,18 @@
+{
+  "name": "Knightfall",
+  "short_name": "Knightfall",
+  "description": "Alfred calendar + Brother Eye Claude hub",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#007AFF",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "48x48",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
