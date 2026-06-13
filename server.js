@@ -83,7 +83,9 @@ QRCode.toDataURL(QR_URL, { width: 300, margin: 2 }, (err, dataUrl) => {
   console.log('╚══════════════════════════════════╝');
   console.log('');
   console.log('QR code opened in browser. Scan it with iPhone Camera.');
-  console.log(`\nWaiting for connection...\n`);
+  console.log(`\nOR paste this into Brother Eye manually:`);
+  console.log(`ws://${IP}:${WS_PORT}?token=${TOKEN}`);
+  console.log('\nWaiting for connection...\n');
 });
 
 wss.on('connection', (ws, req) => {
