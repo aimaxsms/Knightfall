@@ -3,9 +3,11 @@ const QRCode = require('qrcode');
 const os = require('os');
 const fs = require('fs');
 const path = require('path');
+const http = require('http');
 const { spawn, exec } = require('child_process');
 
-const PORT = 8765;
+const HTTP_PORT = 8080;
+const WS_PORT = 8765;
 const TOKEN = Math.random().toString(36).slice(2, 10);
 
 function getLocalIP() {
@@ -19,13 +21,35 @@ function getLocalIP() {
 }
 
 const IP = getLocalIP();
-const WS_URL = `ws://${IP}:${PORT}?token=${TOKEN}`;
-const KNIGHTFALL = 'https://aimaxsms.github.io/Knightfall';
-const QR_URL = `${KNIGHTFALL}?behost=${IP}&beport=${PORT}&betoken=${TOKEN}`;
+// QR points to LOCAL HTTP server so Safari can connect via ws:// (no mixed content)
+const QR_URL = `http://${IP}:${HTTP_PORT}?behost=${IP}&beport=${WS_PORT}&betoken=${TOKEN}`;
 
-const wss = new WebSocket.Server({ port: PORT });
+// ── HTTP server: serves Knightfall files to the iPhone ──
+const MIME = {
+  '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
+  '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml',
+  '.webmanifest': 'application/manifest+json',
+};
 
-// Generate QR as HTML and open in browser
+const httpServer = http.createServer((req, res) => {
+  const urlPath = req.url.split('?')[0];
+  const filePath = path.join(__dirname, urlPath === '/' ? 'index.html' : urlPath);
+  fs.readFile(filePath, (err, data) => {
+    if (err) { res.writeHead(404); res.end('Not found'); return; }
+    const ext = path.extname(filePath);
+    res.writeHead(200, { 'Content-Type': MIME[ext] || 'text/plain' });
+    res.end(data);
+  });
+});
+
+httpServer.listen(HTTP_PORT, () => {
+  console.log(`[HTTP] Serving Knightfall at http://${IP}:${HTTP_PORT}`);
+});
+
+// ── WebSocket server ──
+const wss = new WebSocket.Server({ port: WS_PORT });
+
+// Generate QR code as HTML and open in browser
 QRCode.toDataURL(QR_URL, { width: 300, margin: 2 }, (err, dataUrl) => {
   const html = `<!DOCTYPE html>
 <html>
@@ -46,7 +70,7 @@ QRCode.toDataURL(QR_URL, { width: 300, margin: 2 }, (err, dataUrl) => {
   <p>Scan with your iPhone Camera app<br>(both devices must be on the same WiFi)</p>
   <img src="${dataUrl}" width="260" height="260">
   <div class="note">Point your iPhone camera at this QR — it will open Knightfall and connect automatically.</div>
-  <div class="status">Server running — waiting for connection…</div>
+  <div class="status">Server running on ${IP} — waiting for connection…</div>
 </body>
 </html>`;
 
@@ -54,17 +78,16 @@ QRCode.toDataURL(QR_URL, { width: 300, margin: 2 }, (err, dataUrl) => {
   fs.writeFileSync(qrFile, html);
   exec(`start "" "${qrFile}"`);
 
-  console.log('╔══════════════════════════════════╗');
+  console.log('\n╔══════════════════════════════════╗');
   console.log('║      BROTHER EYE SERVER          ║');
   console.log('╚══════════════════════════════════╝');
   console.log('');
-  console.log('QR code opened in your browser.');
-  console.log(`URL: ${WS_URL}`);
-  console.log('\nWaiting for Brother Eye to connect...\n');
+  console.log('QR code opened in browser. Scan it with iPhone Camera.');
+  console.log(`\nWaiting for connection...\n`);
 });
 
 wss.on('connection', (ws, req) => {
-  const urlParams = new URLSearchParams(req.url.replace('/?', ''));
+  const urlParams = new URLSearchParams(req.url.replace('/?', '').replace('/', ''));
   if (urlParams.get('token') !== TOKEN) {
     ws.send(JSON.stringify({ type: 'error', text: 'Invalid token' }));
     ws.close();
@@ -82,7 +105,6 @@ wss.on('connection', (ws, req) => {
       console.log(`[Brother Eye] → ${msg.text}`);
       ws.send(JSON.stringify({ type: 'thinking' }));
 
-      // Run claude with the prompt
       const claude = spawn('claude', ['-p', msg.text, '--output-format', 'text'], {
         shell: true,
         cwd: process.cwd(),
@@ -94,7 +116,7 @@ wss.on('connection', (ws, req) => {
       claude.stdout.on('data', (d) => { output += d.toString(); });
       claude.stderr.on('data', (d) => { errorOut += d.toString(); });
 
-      claude.on('close', (code) => {
+      claude.on('close', () => {
         const reply = output.trim() || errorOut.trim() || 'No response from Claude Code.';
         console.log(`[Claude Code] → ${reply.slice(0, 100)}...\n`);
         ws.send(JSON.stringify({ type: 'response', text: reply }));
@@ -106,14 +128,10 @@ wss.on('connection', (ws, req) => {
     }
   });
 
-  ws.on('close', () => {
-    console.log('Brother Eye disconnected.\n');
-  });
+  ws.on('close', () => { console.log('Brother Eye disconnected.\n'); });
 });
 
-wss.on('error', (err) => {
-  console.error('Server error:', err.message);
-});
+wss.on('error', (err) => { console.error('Server error:', err.message); });
 
 process.on('SIGINT', () => {
   console.log('\nShutting down Brother Eye server...');

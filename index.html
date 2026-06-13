@@ -9,7 +9,6 @@
 <meta name="theme-color" content="#080808">
 <title>Knightfall</title>
 <link rel="manifest" href="manifest.json">
-<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -294,29 +293,20 @@ code{background:var(--card2);border-radius:4px;padding:1px 5px;
 
     <!-- Connection panel -->
     <div id="be-connect-panel">
-      <div class="info-card" style="text-align:center;padding:20px">
-        <div style="font-size:32px;margin-bottom:10px">◉</div>
-        <div style="font-weight:700;margin-bottom:6px">Connect to your Lenovo</div>
-        <div style="font-size:13px;color:var(--sub);margin-bottom:16px">Run <code>node server.js</code> in your Downloads\MiAsistente-PWA folder, then scan the QR or paste the URL.</div>
-        <button class="btn btn-gold" style="margin-bottom:10px" onclick="startQRScan()">📷 Scan QR Code</button>
+      <div class="info-card" style="text-align:center;padding:24px">
+        <div style="font-size:36px;margin-bottom:12px">◉</div>
+        <div style="font-weight:700;font-size:17px;margin-bottom:8px">Connect to your Lenovo</div>
+        <div style="font-size:13px;color:var(--sub);line-height:1.6;margin-bottom:20px">
+          1. Open a terminal in <code>Downloads\MiAsistente-PWA</code><br>
+          2. Run <code>node server.js</code><br>
+          3. A browser window opens with a QR code<br>
+          4. Scan it with your <strong style="color:var(--text)">iPhone Camera app</strong> — it opens Knightfall and connects automatically
+        </div>
         <div style="color:var(--sub);font-size:12px;margin-bottom:8px">— or paste the URL manually —</div>
         <div style="display:flex;gap:8px">
           <input type="text" id="be-manual-url" class="oracle-input" style="border-radius:10px;padding:10px 12px;font-size:13px" placeholder="ws://192.168.x.x:8765?token=...">
           <button class="send-btn" onclick="beConnectManual()">▲</button>
         </div>
-      </div>
-    </div>
-
-    <!-- QR Scanner -->
-    <div id="be-scanner-panel" style="display:none">
-      <div style="position:relative;margin:0 14px 14px;border-radius:var(--r);overflow:hidden;background:#000;aspect-ratio:1">
-        <video id="be-video" autoplay playsinline style="width:100%;height:100%;object-fit:cover"></video>
-        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none">
-          <div style="width:60%;aspect-ratio:1;border:3px solid var(--gold);border-radius:12px;box-shadow:0 0 0 2000px rgba(0,0,0,0.5)"></div>
-        </div>
-      </div>
-      <div style="padding:0 14px 14px">
-        <button class="btn btn-dark" onclick="stopQRScan()">Cancel</button>
       </div>
     </div>
 
@@ -808,50 +798,6 @@ function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').re
 
 // ── BROTHER EYE ──
 let beSocket = null;
-let beStream = null;
-let beScanInterval = null;
-
-async function startQRScan() {
-  document.getElementById('be-connect-panel').style.display = 'none';
-  document.getElementById('be-scanner-panel').style.display = 'block';
-  try {
-    beStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-    const video = document.getElementById('be-video');
-    video.srcObject = beStream;
-    await video.play();
-    scanFrame(video);
-  } catch(e) {
-    alert('Camera access denied. Please allow camera in Safari settings.');
-    stopQRScan();
-  }
-}
-
-function scanFrame(video) {
-  if (!beStream) return;
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d');
-  beScanInterval = setInterval(() => {
-    if (!beStream || !video.videoWidth) return;
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    // jsQR — works on all browsers
-    if (typeof jsQR !== 'undefined') {
-      const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
-      if (code && code.data.startsWith('ws://')) {
-        beConnect(code.data);
-        return;
-      }
-    }
-    // BarcodeDetector fallback (Safari 17+)
-    if ('BarcodeDetector' in window) {
-      new BarcodeDetector({ formats: ['qr_code'] }).detect(canvas).then(codes => {
-        if (codes.length > 0) beConnect(codes[0].rawValue);
-      }).catch(()=>{});
-    }
-  }, 400);
-}
 
 function beConnectManual() {
   const url = document.getElementById('be-manual-url').value.trim();
@@ -859,16 +805,8 @@ function beConnectManual() {
   beConnect(url);
 }
 
-function stopQRScan() {
-  clearInterval(beScanInterval);
-  if (beStream) { beStream.getTracks().forEach(t => t.stop()); beStream = null; }
-  document.getElementById('be-scanner-panel').style.display = 'none';
-  document.getElementById('be-connect-panel').style.display = 'block';
-}
-
 function beConnect(wsUrl) {
-  stopQRScan();
-  if (!wsUrl.startsWith('ws://')) { alert('Invalid QR code.'); return; }
+  if (!wsUrl.startsWith('ws://')) { alert('Invalid URL — must start with ws://'); return; }
   beSocket = new WebSocket(wsUrl);
   beSocket.onopen = () => {
     document.getElementById('be-connect-panel').style.display = 'none';
@@ -1044,6 +982,17 @@ if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch((
 
 // ── INIT ──
 renderCalendar();
+
+// Auto-connect Brother Eye if URL contains behost params (from QR scan)
+(function checkAutoConnect() {
+  const p = new URLSearchParams(window.location.search);
+  const host = p.get('behost'), port = p.get('beport'), token = p.get('betoken');
+  if (host && port && token) {
+    window.history.replaceState({}, '', window.location.pathname);
+    switchTab('brother-eye');
+    setTimeout(() => beConnect(`ws://${host}:${port}?token=${token}`), 500);
+  }
+})();
 </script>
 </body>
 </html>
