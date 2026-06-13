@@ -9,6 +9,7 @@
 <meta name="theme-color" content="#080808">
 <title>Knightfall</title>
 <link rel="manifest" href="manifest.json">
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -296,8 +297,13 @@ code{background:var(--card2);border-radius:4px;padding:1px 5px;
       <div class="info-card" style="text-align:center;padding:20px">
         <div style="font-size:32px;margin-bottom:10px">◉</div>
         <div style="font-weight:700;margin-bottom:6px">Connect to your Lenovo</div>
-        <div style="font-size:13px;color:var(--sub);margin-bottom:16px">Run <code>node server.js</code> in your Downloads\MiAsistente-PWA folder, then scan the QR code it shows.</div>
-        <button class="btn btn-gold" onclick="startQRScan()">Scan QR Code</button>
+        <div style="font-size:13px;color:var(--sub);margin-bottom:16px">Run <code>node server.js</code> in your Downloads\MiAsistente-PWA folder, then scan the QR or paste the URL.</div>
+        <button class="btn btn-gold" style="margin-bottom:10px" onclick="startQRScan()">📷 Scan QR Code</button>
+        <div style="color:var(--sub);font-size:12px;margin-bottom:8px">— or paste the URL manually —</div>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="be-manual-url" class="oracle-input" style="border-radius:10px;padding:10px 12px;font-size:13px" placeholder="ws://192.168.x.x:8765?token=...">
+          <button class="send-btn" onclick="beConnectManual()">▲</button>
+        </div>
       </div>
     </div>
 
@@ -823,24 +829,34 @@ async function startQRScan() {
 function scanFrame(video) {
   if (!beStream) return;
   const canvas = document.createElement('canvas');
-  canvas.width = video.videoWidth || 300;
-  canvas.height = video.videoHeight || 300;
   const ctx = canvas.getContext('2d');
   beScanInterval = setInterval(() => {
-    if (!beStream) return;
+    if (!beStream || !video.videoWidth) return;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    try {
-      // Use BarcodeDetector if available (Safari 17+)
-      if ('BarcodeDetector' in window) {
-        new BarcodeDetector({ formats: ['qr_code'] })
-          .detect(canvas)
-          .then(codes => {
-            if (codes.length > 0) beConnect(codes[0].rawValue);
-          });
+    // jsQR — works on all browsers
+    if (typeof jsQR !== 'undefined') {
+      const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
+      if (code && code.data.startsWith('ws://')) {
+        beConnect(code.data);
+        return;
       }
-    } catch(e) {}
-  }, 300);
+    }
+    // BarcodeDetector fallback (Safari 17+)
+    if ('BarcodeDetector' in window) {
+      new BarcodeDetector({ formats: ['qr_code'] }).detect(canvas).then(codes => {
+        if (codes.length > 0) beConnect(codes[0].rawValue);
+      }).catch(()=>{});
+    }
+  }, 400);
+}
+
+function beConnectManual() {
+  const url = document.getElementById('be-manual-url').value.trim();
+  if (!url.startsWith('ws://')) { alert('URL must start with ws://'); return; }
+  beConnect(url);
 }
 
 function stopQRScan() {
